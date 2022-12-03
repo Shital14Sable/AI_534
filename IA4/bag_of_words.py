@@ -1,25 +1,20 @@
 # CS 534
 # IA-4
 # Cole Martin Jetton, Shital Dnyandeo Sable
+import pandas
 
 from GloVe_Embedder import GloVe_Embedder
 import os
 import re
 import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-from sklearn.cluster import KMeans
-from sklearn.metrics.cluster import adjusted_rand_score
-from sklearn.metrics.cluster import normalized_mutual_info_score
-from sklearn import metrics
-import matplotlib.pyplot as plt
-import numpy as np
+import time
 from sklearn.linear_model import LogisticRegression
 import gensim.downloader as api
 import string
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix
 
 
 ge = api.load("glove-twitter-200")
@@ -62,38 +57,74 @@ def create_BoW(input_data, test_data):
     bag_of_words = pd.DataFrame(train_words_X.toarray(), columns=vect_elem_cv.get_feature_names())
     test_X = vect_elem_cv.transform(test_data['text'])
     test_Y = test_data['sentiment']
+    bag_of_words.to_csv("./Bag_of_words.csv")
 
     return train_words_X, train_words_Y, test_X, test_Y, bag_of_words
 
 
-def rep_new_tweets(train_words_X, train_words_Y, test_X, test_Y):
+def rep_new_tweets(train_words_X, train_words_Y, test_X, test_Y, test_data):
     reg_model = LogisticRegression()
     reg_model.fit(train_words_X, train_words_Y)
     train_score = reg_model.score(train_words_X, train_words_Y)
     test_score = reg_model.score(test_X, test_Y)
-    return train_score, test_score
+    cf_lr = confusion_matrix(test_Y, reg_model.predict(test_X))
+    predictions_lr = reg_model.predict(test_X)
+    wrong_pred = pd.DataFrame(columns=['tweet', 'sentiment', 'prediction'])
+    for test_ipx, prediction_lr, test_opy in zip(test_data['text'], predictions_lr, test_Y):
+        if prediction_lr != test_opy:
+            df2 = pd.DataFrame({'tweet': [test_ipx], 'sentiment': [test_opy], 'prediction': [prediction_lr]})
+            wrong_pred = pandas.concat([wrong_pred, df2])
+
+    wrong_pred.to_csv("./Wrong_prediction_linreg.csv")
+
+    return train_score, test_score, cf_lr
 
 
-def nb_classifier(train_words_X, train_words_Y, test_X, test_Y):
+def nb_classifier(train_words_X, train_words_Y, test_X, test_Y, test_data):
     nb_ist = MultinomialNB()
     nb_ist.fit(train_words_X, train_words_Y)
     train_scor_nb = nb_ist.score(train_words_X, train_words_Y)
     test_score_nb = nb_ist.score(test_X, test_Y)
-    return train_scor_nb, test_score_nb
+    cf_nb = confusion_matrix(test_Y, nb_ist.predict(test_X))
+
+    predictions_nb = nb_ist.predict(test_X)
+    wrong_pred_nb = pd.DataFrame(columns=['tweet', 'sentiment', 'prediction'])
+    for test_ipx, prediction_nb, test_opy in zip(test_data['text'], predictions_nb, test_Y):
+        if prediction_nb != test_opy:
+            df2 = pd.DataFrame({'tweet': [test_ipx], 'sentiment': [test_opy], 'prediction': [prediction_nb]})
+            wrong_pred_nb= pandas.concat([wrong_pred_nb, df2])
+
+    wrong_pred_nb.to_csv("./Wrong_prediction_naivebayes.csv")
+
+    return train_scor_nb, test_score_nb, cf_nb
 
 
-def rf_classifier(train_words_X, train_words_Y, test_X, test_Y):
+def rf_classifier(train_words_X, train_words_Y, test_X, test_Y, test_data):
     rf_ist = RandomForestClassifier()
     rf_ist.fit(train_words_X, train_words_Y)
     train_scor_rf = rf_ist.score(train_words_X, train_words_Y)
     test_score_rf = rf_ist.score(test_X, test_Y)
-    return train_scor_rf, test_score_rf
+    cf_rf = confusion_matrix(test_Y, rf_ist.predict(test_X))
+
+    predictions_rf = rf_ist.predict(test_X)
+    wrong_pred_rf = pd.DataFrame(columns=['tweet', 'sentiment', 'prediction'])
+    for test_ipx, prediction_rf, test_opy in zip(test_data['text'], predictions_rf, test_Y):
+        if prediction_rf != test_opy:
+            df2 = pd.DataFrame({'tweet': [test_ipx], 'sentiment': [test_opy], 'prediction': [prediction_rf]})
+            wrong_pred_rf = pandas.concat([wrong_pred_rf, df2])
+
+    wrong_pred_rf.to_csv("./Wrong_prediction_ranfor.csv")
+
+    return train_scor_rf, test_score_rf, cf_rf
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     train_data = pd.read_csv("./IA3-train.csv")
     test_data = pd.read_csv("./IA3-dev.csv")
     train_words_X, train_words_Y, test_X, test_Y, bag_of_words = create_BoW(train_data, test_data)
-    print(rep_new_tweets(train_words_X, train_words_Y, test_X, test_Y))
-    print(nb_classifier(train_words_X, train_words_Y, test_X, test_Y))
-    print(rf_classifier(train_words_X, train_words_Y, test_X, test_Y))
+    train_score, test_score, cf_lr = rep_new_tweets(train_words_X, train_words_Y, test_X, test_Y, test_data)
+    train_scor_nb, test_score_nb, cf_nb = nb_classifier(train_words_X, train_words_Y, test_X, test_Y, test_data)
+    train_scor_rf, test_score_rf, cf_rf = rf_classifier(train_words_X, train_words_Y, test_X, test_Y, test_data)
+
+    print(time.time() - start_time)
